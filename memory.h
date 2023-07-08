@@ -24,38 +24,14 @@ NAGIVATION
 # [SECTION] CLASSES
 # [SECTION] FUNCTIONS
 
-*/
-
-/// NEW STRUCTURE TEMPLATE
-/*
-    typedef struct S<StructName>
-    {
-        // Member variables
-        ...
-        ...
-        ...
-    } <StructSecondary>, <StructPointer>;
-*/
-
-/// NEW CLASS TEMPLATE
-/*
-    * Class DeckyMemory.C<ClassName>
-    * Size -> 0x0000 (FullSize[0x0000] - InheritedSize[0x0000])
-    class C<ClassName>
-    {
-    private:	//	"_<VarName>" PRIVATE MEMBER VARIABLES
-    public:     //  "<VarName>" PUBLIC MEMBER VARIABLES      
-    public:	    //	"_<FncName>" CUSTOM FUNCTIONS for Private Memmbers
-    public:	    //	"<FncName>" PUBLIC MEMBER FUNCTIONS
-    };  //  Size: 0x0000
-*/
+*/ 
 
 //---------------------------------------------------------------------------------------------------
 // 
 //	----------	[SECTION] INCLUDES
 //
 //---------------------------------------------------------------------------------------------------
-
+#include "pch.h"
 
 //---------------------------------------------------------------------------------------------------
 // 
@@ -91,7 +67,7 @@ typedef uint64_t            UINT64, * PUINT64;
 //---------------------------------------------------------------------------------------------------
 
 /*
-    contains   various information about a process module
+    -   contains   various information about a process module
 */
 typedef struct MODULE_INFO
 {
@@ -106,19 +82,47 @@ typedef struct MODULE_INFO
 } MODULE_INFORMATION, *MODULE_INFORMATION;
 
 /*
-    contains various information about a running process
+    -   contains various information about a running process
 */
 typedef struct PROCESS_INFO
 {
     std::string			processName;				//	Literal Process Name
-    std::string			cmdPath;					//	"/proc/<pid>/cmd"
+    std::string			cmdPath;					//	"/proc/<pid>/cmdline"
     std::string			cmdLine;					//	Process Command Line (launch params)
-    DWORD				dwProcID;					//	Process ID
+    DWORD				dwProcID;					//	Process ID "/proc/<pid>/"
     HANDLE              pHandle;                    //  handle to the process
     MODULE_INFO     	mainModule;					//	first module
     std::vector<struct MODULE_INFO> procModules;	//	list of all modules
 } PROCESS_INFORMATION, *PROCESS_INFORMATION;
 
+/*
+    -   contains various information about a monitor
+*/
+typedef struct MONITOR_INFO
+{
+    int                 displaySizeX;               //  Display Width
+    int                 displaySizeY;               //  Display Height
+    int                 displayPosX;                //  Display PosX
+    int                 displayPosY;                //  Display PosY
+    int                 clientSizeX;                //  Client Screen Width    
+    int                 clientSizeY;                //  Client Screeb Height 
+    GLFWmonitor*        primaryMonitor;             //  Primary Monitor
+    GLFWmonitor*        activeMonitor;              //  Active Monitor (determined by mouse cursor pos)
+    int32_t             monitorCount;               //  total # of displays
+} MONITOR_INFORMATION, *MONITOR_INFORMATION;
+
+/*
+    -   contains various information about a window
+*/
+typedef struct WINDOW_INFO
+{
+    int                 posX;                       //  window posX
+    int                 posY;                       //  window posY
+    int                 sizeX;                      //  window sizeX
+    int                 sizeY;                      //  window sizeY
+    GLFWwindow*         pWindow;                    //  Window Pointer
+    MONITOR_INFO        wndwMonitor;                //  MONITOR_INFORMATION structure
+} WINDOW_INFORMATION, *WINDOW_INFORMATION;
 
 //---------------------------------------------------------------------------------------------------
 // 
@@ -198,44 +202,172 @@ public: //  functions
 //
 //---------------------------------------------------------------------------------------------------
 
-/*
-    -   attempts to obtain a processID using the input title (iterates directory -> "/proc/<id>")
-    [in] title
-    [out] dwProcID
-    returns: true or false    
-*/
-BOOL GetProcessID(const char* title, DWORD& dwProcID);
+///     NOTE:
+namespace Process
+{
+    /*
+        -   attempts to obtain a processID using the input title (iterates directory -> "/proc/<id>")
+        [in] title = input process name
+        [out] dwProcID = output process id
+        returns: true or false    
+    */
+    BOOL GetProcessID(const char* title, DWORD& dwProcID);
 
-/*
-    -   attempts to obtain the module base using the input string
-    [in] dwProcID = target process ID
-    [in] dwModule = target modules name
-    returns: result will be non zero 
-*/
-uintptr_t GetModuleBase(DWORD dwProcID, const char* dwModule);
+    /*
+        -   attempts to obtain the module base using the input string
+        [in] dwProcID = target process ID
+        [in] dwModule = target modules name
+        returns: result will be non zero 
+    */
+    uintptr_t GetModuleBase(DWORD dwProcID, const char* dwModule);
 
-/*
-    -   attempts to obtain all information on a process & fill a ProcessInfomation structure
-    [out] outInfo = ProcessInformation structure
-    returns: true if output structure is valid
-*/
-BOOL GetProcessInfo(const char* title, PROCESS_INFO& outInfo);
+    /*
+        -   attempts to obtain all information on a process & fill a ProcessInfomation structure
+        [in] title = target process name
+        [out] outInfo = ProcessInformation structure
+        returns: true if output structure is valid
+    */
+    BOOL GetProcessInfo(const char* title, PROCESS_INFO& outInfo);
 
-/*
-    - attempts to read bytes at the destination address in the target process
-    [in] dwProcID = target process id
-    [in] dst = destination address
-    returns: result
-*/
-template<typename T>
-T ReadMemory(DWORD dwProcID, void* dst);
+    /*
+        -   attempts to obtain a module structure using the input string and processID
+        [in] dwProcID = target process id
+        [in] dwModule = target module name
+        [out] outInfo = output MODULE_INFO structure
+        returns: true if output structure is valid
+    */
+    BOOL GetModuleInfo(DWORD dwProcID, const char* dwModule, MODULE_INFO& outInfo);
+}
 
-/*
-    - attepts to write memory to the target process using the desired address and input buffer
-    [in] dwProcID = target process id
-    [in] src = destination address
-    [in] buffer = bytes to write
-    returns: true if success
-*/
-template<typename T>
-BOOL WriteMemory(DWORD dwProcID, void* dst, void* buffer);
+///     NOTE:   
+namespace Memory
+{
+    /*
+        - attempts to read bytes at the destination address in the target process
+        [in] dwProcID = target process id
+        [in] dst = destination address
+        returns: result
+    */
+    template<typename T>
+    T ReadMemory(DWORD dwProcID, void* dst)
+    {
+        T result = NULL;
+
+        struct iovec local[1];
+        local[0].iov_base 	= &result;		//	buffer for bytes read
+        local[0].iov_len 	= sizeof(T);	//	Size
+
+        struct iovec remote[1];
+        remote[0].iov_base 	= dst;			//	Address to be read
+        remote[0].iov_len 	= sizeof(T);	//	size
+
+        ssize_t bytes_read = process_vm_readv(procID, local, 1, remote, 1, 0);
+        if (bytes_read == -1)
+        {
+            // ERROR
+        }
+
+        return result;	
+    }
+
+    /*
+        - attempts to write memory to the target process using the desired address and input buffer
+        [in] dwProcID = target process id
+        [in] src = destination address
+        [in] buffer = bytes to write
+        returns: true if success
+    */
+    template<typename T>
+    BOOL WriteMemory(DWORD dwProcID, void* dst, void* buffer)
+    {
+        struct iovec local[1];
+        local[0].iov_base 	= buffer;		//	buffer for bytes written
+        local[0].iov_len 	= sizeof(T);	//	Size
+
+        struct iovec remote[1];
+        remote[0].iov_base 	= dst;			//	Address to be written to
+        remote[0].iov_len 	= sizeof(T);	//	size
+
+        ssize_t bytes_written = process_vm_writev(procID, local, 1, remote, 1, 0);
+        if (bytes_written == -1)
+        {
+            //  ERROR
+        }
+
+        return (bytes_written != -1);
+    }
+}
+
+///     NOTE: USES GLFW
+namespace Display
+{
+    /*
+        -   retrieves a pointer to the primary monitor
+        returns: primary glfw monitor
+    */
+    GLFWmonitor* GetPrimaryMonitor();
+    
+    /*
+        -   obtains monitor information on the primary monitor
+        [out] outInfo = output MONITOR_INFO structure
+        returns: true if output structure is valid
+    */
+    BOOL GetMonitorInfo(MONITOR_INFO& outInfo);
+}
+
+///     NOTE: USES OPENGL3 + GLFW
+namespace Window
+{
+    /*
+        -   initialize GLFW library and create initial window
+        [in]
+        [out] WINDOW_INFO = output window information
+        returns: true if window was created and WINDOW_IFO struct is valid
+    */
+    BOOL initializeGLFW(const char* title, WINDOW_INFO& outInfo);
+
+    /*
+        -   initialize dear imgui library & create render context
+        [in] GLFWwindow* = window context for render dear imgui
+    */
+    void initializeDearImGui(GLFWwindow* window);
+
+    /*
+        -   render scene for the created window
+        GLFWwindow* = window to render scene to
+        [in] fnc* = menu function to be rendered
+        [out] bool = exit flag
+    */
+    void PresentScene(GLFWwindow* window, void(*menuFnc), bool& bEXIT);
+
+    /*
+        -   destroys the input window context
+    */
+    void shutdownGLFW(GLFWwindow* window);
+    
+    /*
+        -   destroys the input dear imgui context
+    */
+    void shutdownDearImGui();
+}
+
+///     NOTE: USES DEAR IMGUI
+namespace GUI
+{
+    /*
+        - renders text on GUI much like printf on console / terminal
+        [in] text = input text to be displayed
+        [in] color = output color
+        [...] ... = extra params, string must be constructed properly
+    */
+    IMGUI_API void TextCentered(const char* text, const ImVec4& color = { 1, 1, 1, 1 }, ...);
+}
+
+///     NOTE:
+namespace Overlay
+{   
+    /*
+        -   simple dear imgui window
+    */
+    void menu();
+}
