@@ -6,14 +6,157 @@
 //
 //---------------------------------------------------------------------------------------------------
 
-BOOL Process::GetProcessID(const char* title, DWORD& dwProcID);
+BOOL Process::GetProcessID(const char* title, DWORD& dwProcID)
+{
+    bool result = FALSE;
 
-uintptr_t Proces::GetModuleBase(DWORD dwProcID, const char* dwModule);
+    //	Open Process Directory
+    DIR* pdir = opendir("/proc");	
+    if (!pdir)
+        return result;
 
-BOOL Process::GetProcessInfo(const char* title, PROCESS_INFO& outInfo);
+    //	Process Directory Entrypoint
+    struct dirent* dirEntry = nullptr;
+    while ((dirEntry = readdir(pdir)) != nullptr)
+    {
+        //	Check if the entry is both a directory & numeric value
+        if (dirEntry->d_type == DT_DIR && isdigit(dirEntry->d_name[0]))
+        {
+            //	obtain process id
+            DWORD tempPID = strtol(dirEntry->d_name, nullptr, 10);
 
-BOOL Process::GetModuleInfo(DWORD dwProcID, const char* dwModule, MODULE_INFO& outInfo);
+            //	Read cmdline , can also parse [com] but cmd is better for obtaining the proc id
+            char fileName[64];
+            snprintf(fileName, sizeof(fileName), "/proc/%d/cmdline", tempPID);
+            FILE* dwFile = fopen(fileName, "r");
+            if (dwFile)
+            {
+                char cmdLine[256];
+                if (fgets(cmdLine, sizeof(cmdLine), dwFile) != nullptr)
+                {
+                    //	Remove trailing newline char
+                    cmdLine[strcspn(cmdLine, "\n")] = '\0';
 
+                    //	get the string following the last "/"
+                    std::string cmdString(cmdLine);
+                    std::size_t lastSlash = cmdString.find_last_of('/');
+                    std::string processName = cmdString.substr(lastSlash + 1);
+
+                    //	Compare Process Name
+                    if (strncmp(processName.c_str(), title, sizeof(title)))
+                    {
+                        // Match Found
+                        result = TRUE;
+                        procID = tempPID;
+                        fclose(dwFile);
+                        closedir(pdir);
+                        return result;
+                    }
+                }
+            }
+            fclose(dwFile);
+        }
+    }
+    closedir(pdir);
+    return result;
+}
+
+uintptr_t Proces::GetModuleBase(DWORD dwProcID, const char* dwModule)
+{
+    uintptr_t result = NULL;
+    MODULE_INFO modInfo;
+    if (GetModuleInfo(procID, dwModule, modInfo))
+        result = modInfo.baseAddress;
+    return result;
+}
+
+BOOL Process::GetProcessInfo(const char* title, PROCESS_INFO& outInfo)
+{
+    DWORD procID;
+    if (GetProcessID(title, procID))
+    {
+        outInfo.processName = std::to_string(title);
+
+        if (GetAllProcessModules(ProcID, outInfo.procModules))
+        {
+            // Declare Main Module
+            outInfo.mainModule = outInfo.procModules[0];
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+BOOL Process::GetModuleInfo(DWORD dwProcID, const char* dwModule, MODULE_INFO& outInfo)
+{
+    //	Get modules
+    std::vector<SModuleInfo> modules;
+    if (GetAllProcessModules(dwProcID, modules))
+    {
+        // Loop through modules 
+        for (auto mod : modules)
+        {
+            if (strcmp(mod.dwName.c_str(), dwModule, sizeof(mod.dwName))
+            {
+                module = mod;
+                return TRUE;
+            }
+        }
+    }
+    return FALSE;
+}
+
+BOOL Process::GetAllProcessModules(DWORD dwProcID, std::vector<MODULE_INFO>& outArray)
+{
+    // Establish Folder Name
+    std::string fileName = "/proc/" + std::to_string(procID) + "/maps";
+
+    //	Open File Stream
+    std::ifstream file(fileName);
+
+    //	Read File line by line
+    std::string line;
+    while (std::getline(file, line))
+    {
+        //	
+        std::istringstream iss(line);
+        std::string moduleRange;
+        std::string moduleFlags;
+
+        //	
+        if (iss >> moduleRange >> moduleFlags)
+        {
+            size_t pos = moduleRange.find('-');
+            if (pos != std::string::npos)
+            {
+                /*
+                typedef struct MODULE_INFO
+                {
+                    HANDLE			    pHandle;		            //	handle to the module
+                    uintptr_t 		    baseAddress;	            //	first byte
+                    uintptr_t 		    endAddress;		            //	last byte
+                    size_t			    czSize;			            //	sie of module
+                    std::string 	    dwName;			            //	module name
+                    std::string		    mapsPath;		            //  "/proc/<pid>/maps"
+                    std::string		    modulePath;		            //	"/proc/<pid>/maps/<thisModule>"
+                    std::string		    pFlags;			            //  protection flags
+                } MODULE_INFORMATION, *MODULE_INFORMATION;
+                */
+                HANDLE 		handle 		= nullptr;
+                uintptr_t 	baseAddress	= std::stoull(moduleRange.substr(0, pos), nullptr, 16);
+                uintptr_t 	endAddress 	= std::stoull(moduleRange.substr(pos + 1), nullptr, 16);
+                size_t    	size 		= endAddress - baseAddress;
+                std::string modName		= "";                       //  @TODO:
+                std::string mapspath 	= fileName;
+                std::string modulePath  = "";                       //  @TODO:
+                std::string flags 		= moduleFlags;  
+
+                modules.push_back({handle, baseAddress, endAddress, size, modName, mapspath, modulePath, flags});
+            }
+        }
+    }
+    return (outArray.size() > NULL);
+}
 
 //---------------------------------------------------------------------------------------------------
 // 

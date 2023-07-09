@@ -133,7 +133,7 @@ typedef struct WINDOW_INFO
 /**
     * Class DeckyMemory.CDeckyArray
     * Size -> 0x0020 (FullSize[0x0020] - InheritedSize[0x0000])
-    * Templte Array Class
+    * Template Array Class
 */
 template<typename T>
 class CDeckyArray
@@ -195,7 +195,6 @@ public: //  functions
     };  //  Size: 0x000C
 };  //  Size:   0x0020
 
-
 //---------------------------------------------------------------------------------------------------
 // 
 //	----------	[SECTION] FUNCTIONS
@@ -237,6 +236,14 @@ namespace Process
         returns: true if output structure is valid
     */
     BOOL GetModuleInfo(DWORD dwProcID, const char* dwModule, MODULE_INFO& outInfo);
+
+    /*
+        -   attempts to obtain information on all modules in a target process
+        [in]    dwProcID = target process ID
+        [out]   outArray = output MODULE_INFO array
+        returns: true if output structure is valid
+    */
+    BOOL GetAllProcessModules(DWORD dwProcID, std::vector<MODULE_INFO>& outArray);
 }
 
 ///     NOTE:   
@@ -298,7 +305,7 @@ namespace Memory
     }
 }
 
-///     NOTE: USES GLFW
+///     NOTE:   USES GLFW
 namespace Display
 {
     /*
@@ -315,7 +322,7 @@ namespace Display
     BOOL GetMonitorInfo(MONITOR_INFO& outInfo);
 }
 
-///     NOTE: USES OPENGL3 + GLFW
+///     NOTE:   USES OPENGL3 + GLFW
 namespace Window
 {
     /*
@@ -351,7 +358,7 @@ namespace Window
     void shutdownDearImGui();
 }
 
-///     NOTE: USES DEAR IMGUI
+///     NOTE:   USES DEAR IMGUI
 namespace GUI
 {
     /*
@@ -363,7 +370,7 @@ namespace GUI
     IMGUI_API void TextCentered(const char* text, const ImVec4& color = { 1, 1, 1, 1 }, ...);
 }
 
-///     NOTE:
+///     NOTE:   
 namespace Overlay
 {   
     /*
